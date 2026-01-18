@@ -7,10 +7,12 @@ import Navbar from '@/components/Navbar';
 import Sidebar from '@/components/Sidebar';
 import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { getCustomQuiz } from '@/lib/storage';
+import ResultCard from '@/components/ResultCard';
 
 export default function QuizPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const source = searchParams.get('source'); // 'custom' or 'sample'
 
@@ -20,6 +22,8 @@ export default function QuizPage() {
 
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [score, setScore] = useState(0);
 
   useEffect(() => {
     async function loadQuestions() {
@@ -47,12 +51,33 @@ export default function QuizPage() {
   }, [source]);
 
   const handleAnswer = (questionId: string, answer: string) => {
+    if (isSubmitted) return;
     setAnswers(prev => ({ ...prev, [questionId]: answer }));
+  };
+
+  const calculateScore = () => {
+    let newScore = 0;
+    questions.forEach(q => {
+      if (answers[q.id] === q.correctAnswer) {
+        newScore++;
+      }
+    });
+    setScore(newScore);
+    setIsSubmitted(true);
+  };
+
+  const handleRestart = () => {
+    setIsSubmitted(false);
+    setAnswers({});
+    setScore(0);
+    setCurrentQuestionIndex(0);
   };
 
   const handleNext = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
+    } else if (currentQuestionIndex === questions.length - 1) {
+      calculateScore();
     }
   };
 
@@ -63,20 +88,23 @@ export default function QuizPage() {
   };
 
   const currentQuestion = questions[currentQuestionIndex];
+  const isLastQuestion = currentQuestionIndex === questions.length - 1;
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500/30">
-      <Navbar />
+      <Navbar onSubmit={!isSubmitted && !loading && !error && questions.length > 0 ? calculateScore : undefined} />
 
       <div className="pt-16 flex h-[calc(100vh-4rem)]">
         {/* Sidebar - Hidden on mobile, visible on lg screens */}
-        <Sidebar
-          totalQuestions={questions.length}
-          currentQuestionIndex={currentQuestionIndex}
-          onSelectQuestion={setCurrentQuestionIndex}
-          answers={answers}
-          questions={questions}
-        />
+        {!isSubmitted && (
+          <Sidebar
+            totalQuestions={questions.length}
+            currentQuestionIndex={currentQuestionIndex}
+            onSelectQuestion={setCurrentQuestionIndex}
+            answers={answers}
+            questions={questions}
+          />
+        )}
 
         {/* Main Content */}
         <main className="flex-1 relative overflow-y-auto p-4 sm:p-8 lg:p-12">
@@ -93,6 +121,15 @@ export default function QuizPage() {
             ) : error ? (
               <div className="p-6 text-center rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-200 mt-20">
                 <p>{error}</p>
+                <button onClick={() => router.push('/')} className="mt-4 text-sm underline">Go Back Home</button>
+              </div>
+            ) : isSubmitted ? (
+              <div className="py-20">
+                <ResultCard
+                  score={score}
+                  total={questions.length}
+                  onRestart={handleRestart}
+                />
               </div>
             ) : currentQuestion ? (
               <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -125,13 +162,12 @@ export default function QuizPage() {
 
                   <button
                     onClick={handleNext}
-                    disabled={currentQuestionIndex === questions.length - 1}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${currentQuestionIndex === questions.length - 1
-                      ? 'opacity-50 cursor-not-allowed bg-white/5 text-slate-500' // Or hide if we want "Submit"
+                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${isLastQuestion
+                      ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white shadow-lg shadow-green-500/20 active:scale-95'
                       : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/20 active:scale-95'
                       }`}
                   >
-                    Next
+                    {isLastQuestion ? 'Submit' : 'Next'}
                     <ChevronRight className="w-4 h-4" />
                   </button>
                 </div>
