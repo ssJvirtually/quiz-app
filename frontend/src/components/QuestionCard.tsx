@@ -6,19 +6,22 @@ import { CheckCircle2, XCircle } from 'lucide-react';
 
 interface QuestionCardProps {
     question: Question;
+    onAnswer: (questionId: string, answer: string) => void;
+    selectedAnswer?: string;
 }
 
-export default function QuestionCard({ question }: QuestionCardProps) {
-    const [selectedOption, setSelectedOption] = useState<string | null>(null);
-    const [showExplanation, setShowExplanation] = useState(false);
+export default function QuestionCard({ question, onAnswer, selectedAnswer }: QuestionCardProps) {
+    // Local state for immediate feedback/explanation animation,
+    // but actual selection state is lifted up or passed down to persist.
+    // Actually, let's derive display state from props mostly, but we can keep explanation local if we want,
+    // OR we simply show explanation if selectedAnswer is present.
 
-    const isCorrect = selectedOption === question.correctAnswer;
-    const isSelected = !!selectedOption;
+    const isSelected = !!selectedAnswer;
+    const isCorrect = selectedAnswer === question.correctAnswer;
 
     const handleSelect = (option: string) => {
-        if (isSelected) return; // Prevent changing answer
-        setSelectedOption(option);
-        setShowExplanation(true);
+        if (isSelected) return;
+        onAnswer(question.id, option);
     };
 
     return (
@@ -30,7 +33,7 @@ export default function QuestionCard({ question }: QuestionCardProps) {
 
                 <div className="grid gap-3 pt-2">
                     {question.options.map((option) => {
-                        const isSelectedOption = selectedOption === option;
+                        const isSelectedOption = selectedAnswer === option;
                         const isCorrectOption = question.correctAnswer === option;
 
                         let buttonStyle = "glass-button w-full text-left p-4 rounded-xl font-medium transition-all duration-200 border border-white/5";
@@ -65,7 +68,7 @@ export default function QuestionCard({ question }: QuestionCardProps) {
                 </div>
             </div>
 
-            {showExplanation && (
+            {isSelected && (
                 <div className={`p-4 rounded-xl border ${isCorrect ? 'bg-emerald-950/30 border-emerald-500/30' : 'bg-slate-900/50 border-slate-700'} animate-in fade-in slide-in-from-top-2`}>
                     <p className="font-semibold text-sm text-slate-400 mb-1">Explanation</p>
                     <p className="text-slate-200 leading-relaxed text-sm opacity-90">
