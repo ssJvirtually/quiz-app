@@ -1,131 +1,156 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { fetchQuestions, Question } from '@/lib/api';
-import QuestionCard from '@/components/QuestionCard';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Upload, FileJson, ArrowRight, Copy, Check } from 'lucide-react';
+import { saveCustomQuiz } from '@/lib/storage';
+import { QUIZ_SCHEMA, EXAMPLE_QUIZ } from '@/lib/schema';
 import Navbar from '@/components/Navbar';
-import Sidebar from '@/components/Sidebar';
-import { Loader2, ChevronLeft, ChevronRight } from 'lucide-react';
 
-export default function Home() {
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+export default function LandingPage() {
+  const router = useRouter();
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-  useEffect(() => {
-    async function loadQuestions() {
+    const reader = new FileReader();
+    reader.onload = (event) => {
       try {
-        const data = await fetchQuestions();
-        setQuestions(data);
-      } catch (err) {
-        setError('Failed to load questions. Is the backend running?');
-        console.error(err);
-      } finally {
-        setLoading(false);
+        const json = JSON.parse(event.target?.result as string);
+
+        // Basic validation (check if array and has required fields for first item)
+        if (!Array.isArray(json) || json.length === 0 || !json[0].questionText) {
+          throw new Error("Invalid JSON format. Must be an array of questions.");
+        }
+
+        saveCustomQuiz(json);
+        router.push('/quiz?source=custom');
+      } catch (err: any) {
+        setJsonError(err.message || "Invalid JSON file");
       }
-    }
-    loadQuestions();
-  }, []);
-
-  const handleAnswer = (questionId: string, answer: string) => {
-    setAnswers(prev => ({ ...prev, [questionId]: answer }));
+    };
+    reader.readAsText(file);
   };
 
-  const handleNext = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex(prev => prev + 1);
-    }
+  const handleCopySchema = () => {
+    const schemaString = JSON.stringify(EXAMPLE_QUIZ, null, 2);
+    navigator.clipboard.writeText(`Create a JSON quiz with this structure:\n${schemaString}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
-
-  const handlePrev = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(prev => prev - 1);
-    }
-  };
-
-  const currentQuestion = questions[currentQuestionIndex];
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans selection:bg-cyan-500/30">
       <Navbar />
 
-      <div className="pt-16 flex h-[calc(100vh-4rem)]">
-        {/* Sidebar - Hidden on mobile, visible on lg screens */}
-        <Sidebar
-          totalQuestions={questions.length}
-          currentQuestionIndex={currentQuestionIndex}
-          onSelectQuestion={setCurrentQuestionIndex}
-          answers={answers}
-          questions={questions}
-        />
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20">
+        <div className="text-center space-y-8 mb-20">
+          <h1 className="text-5xl sm:text-7xl font-extrabold tracking-tight bg-gradient-to-r from-cyan-300 via-blue-500 to-purple-600 bg-clip-text text-transparent pb-2">
+            Master Any Subject
+          </h1>
+          <p className="text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
+            Upload your own questions or practice with our cloud certification samples.
+            The ultimate adaptive learning platform.
+          </p>
+        </div>
 
-        {/* Main Content */}
-        <main className="flex-1 relative overflow-y-auto p-4 sm:p-8 lg:p-12">
-          {/* Background blobs */}
-          <div className="fixed top-20 right-0 w-[500px] h-[500px] rounded-full bg-purple-500/10 blur-[120px] pointer-events-none" />
-          <div className="fixed bottom-0 left-64 w-[500px] h-[500px] rounded-full bg-cyan-500/10 blur-[120px] pointer-events-none" />
+        <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+          {/* Custom Upload Card */}
+          <div className="glass-card p-8 rounded-3xl border border-white/10 hover:border-cyan-500/30 transition-all group relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
 
-          <div className="max-w-3xl mx-auto relative z-10 pb-20">
-            {loading ? (
-              <div className="flex flex-col items-center justify-center py-40 space-y-4">
-                <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
-                <p className="text-slate-500 animate-pulse">Loading questions...</p>
+            <div className="relative space-y-6">
+              <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20 group-hover:scale-110 transition-transform">
+                <Upload className="w-7 h-7 text-cyan-400" />
               </div>
-            ) : error ? (
-              <div className="p-6 text-center rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-200 mt-20">
-                <p>{error}</p>
+
+              <div>
+                <h3 className="text-2xl font-bold text-slate-100 mb-2">Upload Custom Quiz</h3>
+                <p className="text-slate-400">Load a JSON file generated by ChatGPT, Gemini, or Claude.</p>
               </div>
-            ) : currentQuestion ? (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                <div className="flex items-center justify-between">
-                  <h1 className="text-2xl font-bold text-slate-200">
-                    Question {currentQuestionIndex + 1}
-                    <span className="text-slate-500 text-lg font-normal ml-2">/ {questions.length}</span>
-                  </h1>
+
+              {jsonError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-sm text-rose-300">
+                  {jsonError}
                 </div>
+              )}
 
-                <QuestionCard
-                  question={currentQuestion}
-                  onAnswer={handleAnswer}
-                  selectedAnswer={answers[currentQuestion.id]}
+              <label className="block w-full cursor-pointer">
+                <input
+                  type="file"
+                  accept=".json"
+                  onChange={handleFileUpload}
+                  className="hidden"
                 />
-
-                {/* Navigation Buttons */}
-                <div className="flex items-center justify-between pt-4">
-                  <button
-                    onClick={handlePrev}
-                    disabled={currentQuestionIndex === 0}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${currentQuestionIndex === 0
-                        ? 'opacity-0 pointer-events-none'
-                        : 'bg-white/5 hover:bg-white/10 active:scale-95 text-slate-300'
-                      }`}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                    Previous
-                  </button>
-
-                  <button
-                    onClick={handleNext}
-                    disabled={currentQuestionIndex === questions.length - 1}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-xl font-medium transition-all ${currentQuestionIndex === questions.length - 1
-                        ? 'opacity-50 cursor-not-allowed bg-white/5 text-slate-500' // Or hide if we want "Submit"
-                        : 'bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-400 hover:to-blue-400 text-white shadow-lg shadow-cyan-500/20 active:scale-95'
-                      }`}
-                  >
-                    Next
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
+                <div className="w-full py-4 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold text-center transition-all shadow-lg shadow-cyan-500/20 active:scale-[0.98]">
+                  Select JSON File
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-20 text-slate-500">No questions found.</div>
-            )}
+              </label>
+            </div>
           </div>
-        </main>
-      </div>
+
+          {/* Sample Quiz Card */}
+          <div className="glass-card p-8 rounded-3xl border border-white/10 hover:border-purple-500/30 transition-all group relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
+
+            <div className="relative space-y-6">
+              <div className="w-14 h-14 rounded-2xl bg-purple-500/10 flex items-center justify-center border border-purple-500/20 group-hover:scale-110 transition-transform">
+                <FileJson className="w-7 h-7 text-purple-400" />
+              </div>
+
+              <div>
+                <h3 className="text-2xl font-bold text-slate-100 mb-2">Try Sample Quiz</h3>
+                <p className="text-slate-400">Practice with our pre-loaded Cloud Certification questions.</p>
+              </div>
+
+              <button
+                onClick={() => router.push('/quiz?source=sample')}
+                className="w-full py-4 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              >
+                Start Practice
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Load Example Button (Client-side) */}
+        <div className="text-center mt-8">
+          <button
+            onClick={() => {
+              saveCustomQuiz(EXAMPLE_QUIZ);
+              router.push('/quiz?source=custom');
+            }}
+            className="text-sm text-slate-500 hover:text-cyan-400 underline transition-colors"
+          >
+            Or click here to load a client-side example JSON
+          </button>
+        </div>
+
+        {/* Schema Section */}
+        <div className="max-w-3xl mx-auto mt-20 p-8 rounded-3xl bg-slate-900/50 border border-white/5 backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-200">JSON Schema for LLMs</h3>
+              <p className="text-sm text-slate-400">Copy this example to generate your own quizzes.</p>
+            </div>
+            <button
+              onClick={handleCopySchema}
+              className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+            >
+              {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
+            </button>
+          </div>
+
+          <pre className="bg-slate-950 p-6 rounded-xl overflow-x-auto text-sm text-slate-300 font-mono border border-white/5">
+            {JSON.stringify(EXAMPLE_QUIZ, null, 2)}
+          </pre>
+        </div>
+
+      </main>
     </div>
   );
 }
